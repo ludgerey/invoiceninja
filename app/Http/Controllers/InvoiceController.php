@@ -15,6 +15,7 @@ namespace App\Http\Controllers;
 use App\Events\Invoice\InvoiceWasCreated;
 use App\Events\Invoice\InvoiceWasUpdated;
 use App\Factory\CloneInvoiceFactory;
+use App\Factory\CloneInvoiceToPurchaseOrderFactory;
 use App\Factory\CloneInvoiceToQuoteFactory;
 use App\Factory\InvoiceFactory;
 use App\Factory\SchedulerFactory;
@@ -30,6 +31,7 @@ use App\Http\Requests\Invoice\StoreInvoiceRequest;
 use App\Http\Requests\Invoice\UpdateInvoiceRequest;
 use App\Http\Requests\Invoice\UpdateReminderRequest;
 use App\Http\Requests\Invoice\UploadInvoiceRequest;
+use App\Http\Requests\TaskScheduler\DeletePaymentScheduleRequest;
 use App\Http\Requests\TaskScheduler\PaymentScheduleRequest;
 use App\Jobs\Cron\AutoBill;
 use App\Jobs\Entity\ZipEntity;
@@ -37,6 +39,7 @@ use App\Jobs\Invoice\BulkInvoiceJob;
 use App\Jobs\Invoice\UpdateReminders;
 use App\Models\Account;
 use App\Models\Invoice;
+use App\Models\PurchaseOrder;
 use App\Models\Quote;
 use App\Models\Scheduler;
 use App\Repositories\InvoiceRepository;
@@ -45,6 +48,7 @@ use App\Services\PdfMaker\BatchPdfService;
 use App\Services\PdfMaker\PdfMerge;
 use App\Services\Template\TemplateAction;
 use App\Transformers\InvoiceTransformer;
+use App\Transformers\PurchaseOrderTransformer;
 use App\Transformers\QuoteTransformer;
 use App\Utils\Ninja;
 use App\Utils\Traits\MakesHash;
@@ -543,6 +547,16 @@ class InvoiceController extends BaseController
             return response()->json(['message' => 'No Invoices Found']);
         }
 
+        if ($action == 'clone_to_purchase_order') {
+            Atomic::del($request->lock_key);
+
+            if ($user->cannot('edit', $invoices->first())) {
+                return response()->json(['message' => ctrans('texts.access_denied')], 403);
+            }
+
+            return $this->performAction($invoices->first(), $action);
+        }
+
         /*
          * Download Invoice/s
          */
@@ -686,6 +700,7 @@ class InvoiceController extends BaseController
      *        The current range of actions are as follows
      *        - clone_to_invoice
      *        - clone_to_quote
+     *        - clone_to_purchase_order
      *        - history
      *        - delivery_note
      *        - mark_paid
@@ -772,6 +787,15 @@ class InvoiceController extends BaseController
                 $this->entity_type = Quote::class;
 
                 return $this->itemResponse($quote);
+
+            case 'clone_to_purchase_order':
+                $purchase_order = CloneInvoiceToPurchaseOrderFactory::create($invoice, auth()->user()->id);
+                $purchase_order->design_id = $this->decodePrimaryKey($invoice->client->getSetting('purchase_order_design_id'));
+
+                $this->entity_transformer = PurchaseOrderTransformer::class;
+                $this->entity_type = PurchaseOrder::class;
+
+                return $this->itemResponse($purchase_order);
 
             case 'history':
                 // code...
@@ -1131,9 +1155,10 @@ class InvoiceController extends BaseController
     /**
      * deletePaymentSchedule
      *
+     * @param  DeletePaymentScheduleRequest $request
      * @param  Invoice $invoice
      */
-    public function deletePaymentSchedule(Invoice $invoice)
+    public function deletePaymentSchedule(DeletePaymentScheduleRequest $request,Invoice $invoice)
     {
         $repo = new SchedulerRepository();
 

@@ -60,7 +60,7 @@ use Laracasts\Presenter\PresentableTrait;
  * @property string|null $portal_domain
  * @property bool $enable_modules //alias for DocuNinja is active / available
  * @property object $custom_fields
- * @property \App\DataMapper\CompanySettings|\stdClass $settings
+ * @property \App\DataMapper\CompanySettings|\stdClass|array $settings
  * @property string $slack_webhook_url
  * @property string $google_analytics_key
  * @property int|null $created_at
@@ -823,7 +823,7 @@ class Company extends BaseModel
 
     public function tokens_hashed(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(CompanyToken::class);
+        return $this->hasMany(CompanyToken::class)->where('is_system', false);
     }
 
     public function company_users(): \Illuminate\Database\Eloquent\Relations\HasMany

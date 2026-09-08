@@ -501,6 +501,8 @@ class BaseExport
         'end_time' => 'task.end_time',
         'duration' => 'task.duration',
         'duration_words' => 'task.duration_words',
+        'due_date' => 'task.due_date',
+        'estimated_duration' => 'task.estimated_duration',
         'rate' => 'task.rate',
         'number' => 'task.number',
         'description' => 'task.description',
@@ -1347,6 +1349,13 @@ class BaseExport
             $this->date_key = $this->input['date_key'];
         }
 
+        if (in_array($date_range, ['all', 'all_time'], true)) {
+            $this->start_date = 'All available data';
+            $this->end_date = 'All available data';
+
+            return $query;
+        }
+
         try {
             $custom_start_date = Carbon::parse($this->input['start_date']);
             $custom_end_date = Carbon::parse($this->input['end_date']);
@@ -1356,10 +1365,6 @@ class BaseExport
         }
 
         switch ($date_range) {
-            case 'all':
-                $this->start_date = 'All available data';
-                $this->end_date = 'All available data';
-                return $query;
             case 'last7':
             case 'last_7_days':
             case 'last7_days':
